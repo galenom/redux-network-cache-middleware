@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { networkCacheMiddleware } from '../index';
+import { networkCache } from '../index';
 
 jest.mock('axios');
 
@@ -17,7 +17,6 @@ describe('NetworkCacheMiddlewareTest', () => {
     getState = () => ({
       auth: {
         fetching: false,
-        cancelled: false,
         error: null,
         data: { auth: { sessionId: 'USER' } },
         timestamp: 600000
@@ -29,7 +28,7 @@ describe('NetworkCacheMiddlewareTest', () => {
   });
 
   const runMiddlware = () => {
-    return networkCacheMiddleware({
+    return networkCache({
       dispatch,
       getState
     })(next)(action);
@@ -38,8 +37,8 @@ describe('NetworkCacheMiddlewareTest', () => {
   describe('test middleware functionality', () => {
     test('if types (plural) is passed in, networkMiddlware action passed to next is modified', async () => {
       action = {
-        types: ['DIESL_REQUEST', 'DIESL_SUCCESS', 'DIESL_FAILURE'],
-        payload: {
+        types: ['MY_REQUEST', 'MY_SUCCESS', 'MY_FAILURE'],
+        config: {
           url: 'https://api.com'
         }
       };
@@ -51,8 +50,8 @@ describe('NetworkCacheMiddlewareTest', () => {
 
     test('Cancel middleware if types called without proper config for axios', async () => {
       action = {
-        types: ['DIESL_REQUEST', 'DIESL_SUCCESS', 'DIESL_FAILURE'],
-        payload: {
+        types: ['MY_REQUEST', 'MY_SUCCESS', 'MY_FAILURE'],
+        config: {
           link: 'https://api.com'
         }
       };
@@ -65,8 +64,8 @@ describe('NetworkCacheMiddlewareTest', () => {
     test('dispatches REQUEST action', async () => {
       axios.mockResolvedValue({ data: { status: 'SUCCESS' } });
       action = {
-        types: ['DIESL_REQUEST', 'DIESL_SUCCESS', 'DIESL_FAILURE'],
-        payload: {
+        types: ['MY_REQUEST', 'MY_SUCCESS', 'MY_FAILURE'],
+        config: {
           url: 'https://api.com'
         }
       };
@@ -74,13 +73,11 @@ describe('NetworkCacheMiddlewareTest', () => {
       await runMiddlware();
 
       expect(next).toHaveBeenCalledWith({
-        type: 'DIESL_REQUEST',
+        type: 'MY_REQUEST',
         payload: {
           data: null,
           fetching: true,
           error: null,
-          cancelled: false,
-          completed: false,
           timestamp: null
         }
       })
@@ -89,8 +86,8 @@ describe('NetworkCacheMiddlewareTest', () => {
     test('dispatches SUCCESS action', async () => {
       axios.mockResolvedValue({ data: { status: 'SUCCESS' } });
       action = {
-        types: ['DIESL_REQUEST', 'DIESL_SUCCESS', 'DIESL_FAILURE'],
-        payload: {
+        types: ['MY_REQUEST', 'MY_SUCCESS', 'MY_FAILURE'],
+        config: {
           url: 'https://api.com'
         }
       };
@@ -98,15 +95,13 @@ describe('NetworkCacheMiddlewareTest', () => {
       await runMiddlware();
 
       expect(next).toHaveBeenNthCalledWith(2, {
-        type: 'DIESL_SUCCESS',
+        type: 'MY_SUCCESS',
         payload: {
           data: {
             status: 'SUCCESS'
           },
           fetching: false,
           error: null,
-          cancelled: false,
-          completed: true,
           timestamp: null
         }
       });
@@ -115,8 +110,8 @@ describe('NetworkCacheMiddlewareTest', () => {
     test('dispatches FAILURE action', async () => {
       axios.mockRejectedValue({ message: 'FAILURE' });
       action = {
-        types: ['DIESL_REQUEST', 'DIESL_SUCCESS', 'DIESL_FAILURE'],
-        payload: {
+        types: ['MY_REQUEST', 'MY_SUCCESS', 'MY_FAILURE'],
+        config: {
           url: 'https://api.com'
         }
       };
@@ -124,47 +119,40 @@ describe('NetworkCacheMiddlewareTest', () => {
       await runMiddlware();
 
       expect(next).toHaveBeenNthCalledWith(2, {
-        type: 'DIESL_FAILURE',
+        type: 'MY_FAILURE',
         payload: {
           data: null,
           fetching: false,
           error: 'FAILURE',
-          cancelled: false,
-          completed: false,
+          
           timestamp: null
         }
       });
     });
 
-    test('optionally maps axios response if mapper included in payload', async () => {
+    test('optionally maps axios response if mapResponseToState included in payload', async () => {
       axios.mockResolvedValue({ data: { unnecessaryNestedLayer: { status: 'SUCCESS' } } });
 
-      const mapper = (response) => {
-        return {
-          data: response.data.unnecessaryNestedLayer
-        };
+      const mapResponseToState = (response) => {
+        return response.unnecessaryNestedLayer;
       };
 
       action = {
-        types: ['DIESL_REQUEST', 'DIESL_SUCCESS', 'DIESL_FAILURE'],
-        payload: {
-          url: 'https://api.com',
-          mapper
-        }
+        types: ['MY_REQUEST', 'MY_SUCCESS', 'MY_FAILURE'],
+        config: { url: 'https://api.com' },
+        mapResponseToState
       };
 
       await runMiddlware();
 
       expect(next).toHaveBeenNthCalledWith(2, {
-        type: 'DIESL_SUCCESS',
+        type: 'MY_SUCCESS',
         payload: {
           data: {
             status: 'SUCCESS'
           },
           fetching: false,
           error: null,
-          cancelled: false,
-          completed: true,
           timestamp: null
         }
       });
@@ -174,25 +162,21 @@ describe('NetworkCacheMiddlewareTest', () => {
       test('Caches successful response', async () => {
         axios.mockResolvedValue({ data: { status: 'SUCCESS' } });
         action = {
-          types: ['DIESL_REQUEST', 'DIESL_SUCCESS', 'DIESL_FAILURE'],
-          payload: {
-            url: 'https://api.com',
-            cachePath: 'shouldBeCached'
-          }
+          types: ['MY_REQUEST', 'MY_SUCCESS', 'MY_FAILURE'],
+          config: { url: 'https://api.com' },
+          cacheReduxPath: 'shouldBeCached'
         };
 
         await runMiddlware();
 
         expect(next).toHaveBeenNthCalledWith(2, {
-          type: 'DIESL_SUCCESS',
+          type: 'MY_SUCCESS',
           payload: {
             data: {
               status: 'SUCCESS'
             },
             fetching: false,
             error: null,
-            cancelled: false,
-            completed: true,
             timestamp: 600005
           }
         });
@@ -202,7 +186,6 @@ describe('NetworkCacheMiddlewareTest', () => {
         getState = () => ({
           auth: {
             fetching: false,
-            cancelled: false,
             error: null,
             data: { auth: { data: { sessionId: 'USER' } } },
             timestamp: 6
@@ -210,11 +193,30 @@ describe('NetworkCacheMiddlewareTest', () => {
         });
 
         action = {
-          types: ['DIESL_REQUEST', 'DIESL_SUCCESS', 'DIESL_FAILURE'],
-          payload: {
-            cachePath: 'auth',
-            url: 'https://api.com'
+          types: ['MY_REQUEST', 'MY_SUCCESS', 'MY_FAILURE'],
+          config: { url: 'https://api.com' },
+          cacheReduxPath: 'auth'
+        };
+
+        await runMiddlware();
+
+        expect(next).not.toHaveBeenCalled()
+      });
+
+      test('Does not dispatch actions if cache in fetching state', async () => {
+        getState = () => ({
+          auth: {
+            fetching: true,
+            error: null,
+            data: null,
+            timestamp: 6
           }
+        });
+
+        action = {
+          types: ['MY_REQUEST', 'MY_SUCCESS', 'MY_FAILURE'],
+          config: { url: 'https://api.com' },
+          cacheReduxPath: 'auth',
         };
 
         await runMiddlware();
