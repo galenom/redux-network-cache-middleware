@@ -16,7 +16,7 @@
   "homepage": "https://github.com/galenom/redux-network-cache-middleware",
   "license": "MIT",
   "dependencies": {
-    "axios": "^0.19.0",
+    "axios": "^0.21.1",
     "jest-cli": "^24.9.0",
     "lodash": "^4.17.15",
     "redux": "^4.0.4"
